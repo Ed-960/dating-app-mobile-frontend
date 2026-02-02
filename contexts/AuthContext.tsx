@@ -3,23 +3,14 @@ import React, {
   useCallback,
   useContext,
   useEffect,
-  useRef,
   useState,
 } from 'react';
 import * as SecureStore from 'expo-secure-store';
-import * as AuthSession from 'expo-auth-session';
-import * as WebBrowser from 'expo-web-browser';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { useQueryClient } from '@tanstack/react-query';
-import { Alert } from 'react-native';
-import { BACKEND_URL, GOOGLE_CLIENT_ID, REDIRECT_URI } from '../constants/env';
+import { Alert, Platform } from 'react-native';
+import { BACKEND_URL, GOOGLE_CLIENT_ID, GOOGLE_IOS_CLIENT_ID } from '../constants/env';
 import { apiRequest, tryRefreshTokens } from '../api/client';
-
-WebBrowser.maybeCompleteAuthSession();
-
-const discovery = {
-  authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
-  tokenEndpoint: 'https://oauth2.googleapis.com/token',
-};
 
 interface Tokens {
   accessToken: string;
@@ -59,24 +50,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const queryClient = useQueryClient();
 
-  const codeVerifierRef = useRef<string | null>(null);
-
-  const [request, response, promptAsync] = AuthSession.useAuthRequest(
-    {
-      clientId: GOOGLE_CLIENT_ID,
-      scopes: ['openid', 'profile', 'email'],
-      redirectUri: REDIRECT_URI,
-      responseType: AuthSession.ResponseType.Code,
-      usePKCE: true,
-    },
-    discovery,
-  );
-
+  // Инициализация Google Sign-In
   useEffect(() => {
-    if (request?.codeVerifier) {
-      codeVerifierRef.current = request.codeVerifier;
-    }
-  }, [request]);
+    GoogleSignin.configure({
+      webClientId: GOOGLE_CLIENT_ID, // Web Client ID для верификации id_token
+      iosClientId: GOOGLE_IOS_CLIENT_ID, // iOS Client ID (опционально, но рекомендуется)
+      offlineAccess: false, // Не нужен refresh_token от Google, используем свои JWT
+      forceCodeForRefreshToken: false,
+    });
+  }, []);
 
   const loadTokens = useCallback(async () => {
     try {
@@ -92,75 +74,73 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const handleAuthResponse = useCallback(
-    async (authResponse: AuthSession.AuthSessionResult) => {
-      if (authResponse.type === 'success') {
-        const code = authResponse.params.code;
-        const codeVerifier = codeVerifierRef.current;
-
-        if (!code || !codeVerifier) {
-          Alert.alert('Error', 'Invalid authentication response');
-          return;
-        }
-
-        try {
-          const res = await fetch(`${BACKEND_URL}/auth/google/code`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ code, codeVerifier }),
-          });
-
-          if (!res.ok) {
-            const errorText = await res.text();
-            console.error('Token exchange failed:', errorText);
-            throw new Error('Authentication failed');
-          }
-
-          const receivedTokens = (await res.json()) as Tokens;
-
-          await SecureStore.setItemAsync('accessToken', receivedTokens.accessToken);
-          await SecureStore.setItemAsync('refreshToken', receivedTokens.refreshToken);
-
-          setTokens(receivedTokens);
-        } catch (error) {
-          console.error('Auth exchange error:', error);
-          Alert.alert('Error', 'Failed to complete authentication');
-        }
-      } else if (authResponse.type === 'error') {
-        console.error('Auth error:', authResponse.errorCode, authResponse.params);
-        Alert.alert(
-          'Authentication Error',
-          authResponse.params?.error_description || 'An error occurred during sign in',
-        );
-      } else if (authResponse.type === 'dismiss') {
-        console.log('User dismissed auth');
-      } else if (authResponse.type === 'locked') {
-        Alert.alert('Error', 'Another authentication session is in progress');
-      }
-    },
-    [],
-  );
-
   const signIn = useCallback(async () => {
-    if (!request) {
-      Alert.alert('Error', 'Authentication not ready. Please try again.');
-      return;
-    }
-
     setIsAuthenticating(true);
     try {
-      const result = await promptAsync();
-      await handleAuthResponse(result);
-    } catch (error) {
+      // Проверяем, установлены ли Google Play Services (Android)
+      if (Platform.OS === 'android') {
+        await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      }
+
+      // Выполняем вход через Google
+      await GoogleSignin.signIn();
+      const userInfo = await GoogleSignin.signInSilently();
+
+      if (!userInfo.idToken) {
+        throw new Error('No ID token received from Google');
+      }
+
+      // Отправляем id_token на бэкенд для верификации
+      const res = await fetch(`${BACKEND_URL}/auth/google-id-token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken: userInfo.idToken }),
+      });
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error('Token verification failed:', errorText);
+        throw new Error('Authentication failed');
+      }
+
+      const receivedTokens = (await res.json()) as Tokens;
+
+      // Сохраняем токены
+      await SecureStore.setItemAsync('accessToken', receivedTokens.accessToken);
+      await SecureStore.setItemAsync('refreshToken', receivedTokens.refreshToken);
+
+      setTokens(receivedTokens);
+    } catch (error: any) {
       console.error('Sign in error:', error);
+
+      // Игнорируем ошибку отмены пользователем
+      if (error.code === 'SIGN_IN_CANCELLED') {
+        console.log('User cancelled sign in');
+        return;
+      }
+
+      if (error.code === 'IN_PROGRESS') {
+        Alert.alert('Error', 'Sign in already in progress');
+        return;
+      }
+
+      if (error.code === 'PLAY_SERVICES_NOT_AVAILABLE') {
+        Alert.alert('Error', 'Google Play Services not available');
+        return;
+      }
+
       Alert.alert('Error', 'Failed to sign in. Please try again.');
     } finally {
       setIsAuthenticating(false);
     }
-  }, [request, promptAsync, handleAuthResponse]);
+  }, []);
 
   const signOut = useCallback(async () => {
     try {
+      // Выход из Google аккаунта
+      await GoogleSignin.signOut();
+
+      // Выход из бэкенда
       if (tokens?.accessToken) {
         await fetch(`${BACKEND_URL}/auth/logout`, {
           method: 'POST',
@@ -171,6 +151,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }).catch(() => undefined);
       }
 
+      // Удаляем токены
       await SecureStore.deleteItemAsync('accessToken');
       await SecureStore.deleteItemAsync('refreshToken');
 
@@ -221,12 +202,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     loadUser();
   }, [tokens, signOut]);
-
-  useEffect(() => {
-    if (response && !isAuthenticating) {
-      handleAuthResponse(response);
-    }
-  }, [response, isAuthenticating, handleAuthResponse]);
 
   useEffect(() => {
     loadTokens();

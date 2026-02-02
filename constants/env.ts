@@ -10,12 +10,15 @@ export const GOOGLE_CLIENT_ID =
   Constants.expoConfig?.extra?.GOOGLE_CLIENT_ID ||
   'your_web_client_id.apps.googleusercontent.com';
 
-export const REDIRECT_URI = 'datingapp://oauth2redirect';
+export const GOOGLE_IOS_CLIENT_ID =
+  Constants.expoConfig?.extra?.GOOGLE_IOS_CLIENT_ID ||
+  'your_ios_client_id.apps.googleusercontent.com';
 
 // Логирование для отладки (только в dev режиме)
 if (__DEV__) {
   console.log('🔧 Environment Config:', {
     BACKEND_URL,
     GOOGLE_CLIENT_ID: GOOGLE_CLIENT_ID.substring(0, 30) + '...',
+    GOOGLE_IOS_CLIENT_ID: GOOGLE_IOS_CLIENT_ID.substring(0, 30) + '...',
   });
 }

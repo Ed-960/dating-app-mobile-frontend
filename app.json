@@ -39,11 +39,18 @@
     },
     "extra": {
       "BACKEND_URL": "http://localhost:3000",
-      "GOOGLE_CLIENT_ID": "your_web_client_id.apps.googleusercontent.com"
+      "GOOGLE_CLIENT_ID": "your_web_client_id.apps.googleusercontent.com",
+      "GOOGLE_IOS_CLIENT_ID": "your_ios_client_id.apps.googleusercontent.com"
     },
     "plugins": [
       "expo-asset",
       "expo-font",
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.YOUR_IOS_REVERSED_CLIENT_ID"
+        }
+      ],
       [
         "expo-build-properties",
         {
