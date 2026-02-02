@@ -9,7 +9,8 @@ RUN npm install -g expo-cli@latest
 COPY package*.json ./
 
 # Устанавливаем зависимости
-RUN npm ci
+# Используем npm install вместо npm ci, так как lock файл может быть не синхронизирован
+RUN npm install
 
 # Копируем весь код
 COPY . .
