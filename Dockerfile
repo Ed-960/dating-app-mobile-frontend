@@ -2,24 +2,21 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Устанавливаем Expo CLI глобально
-RUN npm install -g expo-cli@latest
-
 # Копируем package файлы
 COPY package*.json ./
 
-# Устанавливаем зависимости
+# Устанавливаем зависимости с --legacy-peer-deps для решения конфликтов
 RUN npm install --legacy-peer-deps
 
 # Копируем весь код
 COPY . .
 
 # Обновляем все expo-пакеты до версий, совместимых с текущим SDK
+# Используем новый @expo/cli вместо устаревшего expo-cli
 # Удаляем node_modules перед обновлением, чтобы избежать конфликтов старых версий
-# Настраиваем npm на использование --legacy-peer-deps для решения конфликтов
 RUN rm -rf node_modules && \
     npm config set legacy-peer-deps true && \
-    npx expo install --fix
+    npx @expo/cli@latest install --fix
 
 # Экспортируем порты для Expo
 EXPOSE 8081 19000 19001 19002
