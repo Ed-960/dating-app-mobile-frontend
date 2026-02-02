@@ -1,0 +1,60 @@
+{
+  "expo": {
+    "name": "Dating App",
+    "slug": "dating-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "scheme": "datingapp",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.yourcompany.datingapp",
+      "buildNumber": "1",
+      "infoPlist": {
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": ["datingapp"]
+          }
+        ]
+      }
+    },
+    "android": {
+      "package": "com.yourcompany.datingapp",
+      "versionCode": 1,
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "datingapp"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
+    },
+    "extra": {
+      "BACKEND_URL": "http://localhost:3000",
+      "GOOGLE_CLIENT_ID": "your_web_client_id.apps.googleusercontent.com"
+    },
+    "plugins": [
+      "expo-asset",
+      "expo-font",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "13.0"
+          },
+          "android": {
+            "minSdkVersion": 23
+          }
+        }
+      ]
+    ]
+  }
+}
