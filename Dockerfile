@@ -11,13 +11,6 @@ RUN npm install --legacy-peer-deps
 # Копируем весь код
 COPY . .
 
-# Обновляем все expo-пакеты до версий, совместимых с текущим SDK
-# Используем новый @expo/cli вместо устаревшего expo-cli
-# Удаляем node_modules перед обновлением, чтобы избежать конфликтов старых версий
-RUN rm -rf node_modules && \
-    npm config set legacy-peer-deps true && \
-    npx @expo/cli@latest install --fix
-
 # Экспортируем порты для Expo
 EXPOSE 8081 19000 19001 19002
 
