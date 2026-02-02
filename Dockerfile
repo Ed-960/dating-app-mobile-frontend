@@ -9,15 +9,17 @@ RUN npm install -g expo-cli@latest
 COPY package*.json ./
 
 # Устанавливаем зависимости
-# Используем npm install вместо npm ci, так как lock файл может быть не синхронизирован
-RUN npm install
+RUN npm install --legacy-peer-deps
 
 # Копируем весь код
 COPY . .
 
 # Обновляем все expo-пакеты до версий, совместимых с текущим SDK
-# Это автоматически обновит все expo-* пакеты до правильных версий
-RUN npx expo install --fix
+# Удаляем node_modules перед обновлением, чтобы избежать конфликтов старых версий
+# Настраиваем npm на использование --legacy-peer-deps для решения конфликтов
+RUN rm -rf node_modules && \
+    npm config set legacy-peer-deps true && \
+    npx expo install --fix
 
 # Экспортируем порты для Expo
 EXPOSE 8081 19000 19001 19002
